@@ -1,0 +1,129 @@
+version: "3.9"
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: prodproof
+      MYSQL_USER: prodproof
+      MYSQL_PASSWORD: prodproof
+
+    volumes:
+      - prodproof_mysqldata:/var/lib/mysql
+
+    ports:
+      - "3307:3306"
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-prootpass"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    environment:
+      APP_ENV: development
+      DEMO_MODE: "true"
+
+      DATABASE_URL: mysql+pymysql://prodproof:prodproof@db:3306/prodproof
+
+      # AWS
+      AWS_ENABLED: "true"
+      AWS_REGION: "ap-south-1"
+      AWS_SHARED_CREDENTIALS_FILE: "/root/.aws/credentials"
+
+      # Jenkins
+      JENKINS_ENABLED: "true"
+      JENKINS_BASE_URL: "http://host.docker.internal:8080"
+      JENKINS_TIMEOUT_SECONDS: "8"
+
+      # Trivy
+      TRIVY_ENABLED: "true"
+      TRIVY_REPORT_SOURCE: "/app/security_reports/trivy.json"
+
+      # Gitleaks
+      GITLEAKS_ENABLED: "true"
+      GITLEAKS_REPORT_SOURCE: "/app/security_reports/gitleaks.json"
+
+      # Terraform
+      TERRAFORM_ENABLED: "true"
+      TERRAFORM_PLAN_SOURCE: "/app/terraform_reports/tfplan.json"
+
+      # Kubernetes
+      KUBERNETES_ENABLED: "true"
+      KUBE_CONFIG_PATH: "/root/.kube/config"
+      KUBE_CONTEXT: "docker-desktop"
+
+    volumes:
+      # AWS credentials
+      - type: bind
+        source: ${USERPROFILE}/.aws
+        target: /root/.aws
+        read_only: true
+
+      # Security scan reports
+      - type: bind
+        source: ./security_reports
+        target: /app/security_reports
+        read_only: true
+
+      # Terraform plan reports
+      - type: bind
+        source: ./terraform_reports
+        target: /app/terraform_reports
+        read_only: true
+
+      # Kubernetes config
+      - type: bind
+        source: ./kube
+        target: /root/.kube
+        read_only: true
+
+    ports:
+      - "8000:8000"
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+
+    depends_on:
+      - backend
+
+    ports:
+      - "8081:80"
+
+volumes:
+  prodproof_mysqldata:

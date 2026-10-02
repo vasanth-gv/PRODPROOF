@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PRODPROOF — Production Release Readiness &amp; Risk Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0F14;
+    --surface:#111720;
+    --surface-raised:#161D27;
+    --border:#232C38;
+    --border-soft:#1A222C;
+    --text:#DCE4EC;
+    --text-muted:#7C8A99;
+    --text-dim:#4E5A68;
+    --signal:#E8A33D;
+    --pass:#3FB950;
+    --warn:#E8A33D;
+    --fail:#EF5350;
+    --unavailable:#5B6673;
+    --font-ui:'IBM Plex Sans', -apple-system, sans-serif;
+    --font-mono:'IBM Plex Mono', 'SF Mono', monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-ui);
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit; text-decoration:none;}
+  ::selection{background:rgba(232,163,61,0.25);}
+
+  .app{display:grid; grid-template-columns:236px 1fr; min-height:100vh;}
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    background:var(--surface);
+    border-right:1px solid var(--border);
+    display:flex; flex-direction:column;
+    position:sticky; top:0; height:100vh;
+  }
+  .brand{
+    padding:22px 20px 18px;
+    border-bottom:1px solid var(--border-soft);
+  }
+  .brand-mark{
+    display:flex; align-items:center; gap:9px;
+  }
+  .brand-dot{
+    width:9px; height:9px; border-radius:50%;
+    background:var(--signal);
+    box-shadow:0 0 8px rgba(232,163,61,0.7);
+  }
+  .brand-name{
+    font-family:var(--font-mono);
+    font-weight:600;
+    font-size:15px;
+    letter-spacing:0.04em;
+    color:var(--text);
+  }
+  .brand-sub{
+    margin-top:5px;
+    font-size:11px;
+    color:var(--text-dim);
+    letter-spacing:0.02em;
+  }
+
+  .nav{flex:1; overflow-y:auto; padding:14px 10px;}
+  .nav-group{margin-bottom:4px;}
+  .nav-group-label{
+    font-size:10.5px;
+    color:var(--text-dim);
+    padding:14px 10px 6px;
+    letter-spacing:0.06em;
+  }
+  .nav-item{
+    display:flex; align-items:center; gap:10px;
+    padding:8px 10px;
+    border-radius:5px;
+    color:var(--text-muted);
+    font-size:13.2px;
+    cursor:pointer;
+    border-left:2px solid transparent;
+    transition:background 0.12s ease, color 0.12s ease;
+  }
+  .nav-item:hover{background:var(--surface-raised); color:var(--text);}
+  .nav-item.active{
+    background:var(--surface-raised);
+    color:var(--text);
+    border-left:2px solid var(--signal);
+  }
+  .nav-item .n{
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    color:var(--text-dim);
+    width:16px;
+  }
+  .nav-item.active .n{color:var(--signal);}
+
+  .sidebar-foot{
+    padding:14px 18px;
+    border-top:1px solid var(--border-soft);
+    font-size:11px;
+    color:var(--text-dim);
+    font-family:var(--font-mono);
+  }
+
+  /* ---------- Main ---------- */
+  .main{display:flex; flex-direction:column; min-width:0;}
+  .topbar{
+    height:56px;
+    border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 24px;
+    background:var(--bg);
+  }
+  .topbar-left{display:flex; align-items:center; gap:14px;}
+  .page-title{font-size:15px; font-weight:600;}
+  .env-pill{
+    font-family:var(--font-mono);
+    font-size:11px;
+    padding:3px 9px;
+    border-radius:3px;
+    border:1px solid var(--border);
+    color:var(--text-muted);
+    letter-spacing:0.03em;
+  }
+  .topbar-right{display:flex; align-items:center; gap:16px;}
+  .status-chip{
+    display:flex; align-items:center; gap:7px;
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    padding:5px 10px;
+    border-radius:4px;
+    border:1px solid var(--border);
+    color:var(--text-muted);
+  }
+  .dot{width:7px; height:7px; border-radius:50%; flex-shrink:0;}
+  .dot.pass{background:var(--pass); box-shadow:0 0 6px rgba(63,185,80,0.6);}
+  .dot.warn{background:var(--warn); box-shadow:0 0 6px rgba(232,163,61,0.6);}
+  .dot.fail{background:var(--fail); box-shadow:0 0 6px rgba(239,83,80,0.6);}
+  .dot.off{background:var(--unavailable);}
+
+  .content{padding:28px 32px 60px; overflow-y:auto;}
+
+  /* ---------- Overview hero ---------- */
+  .hero{
+    border:1px solid var(--border);
+    background:var(--surface);
+    border-radius:6px;
+    padding:26px 28px;
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:24px;
+    margin-bottom:22px;
+  }
+  .hero-label{
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--text-dim);
+    letter-spacing:0.06em;
+    margin-bottom:10px;
+  }
+  .hero-decision{
+    font-family:var(--font-mono);
+    font-size:34px;
+    font-weight:600;
+    letter-spacing:0.01em;
+  }
+  .hero-decision.na{color:var(--text-dim);}
+  .hero-reason{color:var(--text-muted); margin-top:8px; max-width:56ch; font-size:13.5px;}
+  .hero-meta{display:flex; flex-direction:column; gap:10px; align-items:flex-end; justify-content:center;}
+  .hero-meta-row{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-muted);}
+  .hero-meta-row b{color:var(--text); font-family:var(--font-mono); font-weight:500;}
+
+  .grid{display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; margin-bottom:22px;}
+  @media (max-width:1200px){ .grid{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:680px){ .grid{grid-template-columns:1fr;} .app{grid-template-columns:1fr;} .sidebar{display:none;} }
+
+  .tile{
+    border:1px solid var(--border);
+    background:var(--surface);
+    border-radius:6px;
+    padding:16px 18px;
+  }
+  .tile-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  .tile-title{font-size:12px; color:var(--text-muted); letter-spacing:0.02em;}
+  .tile-value{font-family:var(--font-mono); font-size:22px; font-weight:600;}
+  .tile-value.dim{color:var(--text-dim); font-size:14px; font-weight:500;}
+  .tile-sub{font-size:11.5px; color:var(--text-dim); margin-top:6px;}
+
+  .section{
+    border:1px solid var(--border);
+    background:var(--surface);
+    border-radius:6px;
+    margin-bottom:22px;
+    overflow:hidden;
+  }
+  .section-head{
+    padding:14px 18px;
+    border-bottom:1px solid var(--border-soft);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .section-title{font-size:13px; font-weight:600;}
+  .section-body{padding:4px 0;}
+
+  table{width:100%; border-collapse:collapse;}
+  th{
+    text-align:left;
+    font-size:10.5px;
+    color:var(--text-dim);
+    letter-spacing:0.05em;
+    padding:8px 18px;
+    border-bottom:1px solid var(--border-soft);
+    font-weight:500;
+  }
+  td{
+    padding:10px 18px;
+    font-size:13px;
+    border-bottom:1px solid var(--border-soft);
+    color:var(--text-muted);
+  }
+  tr:last-child td{border-bottom:none;}
+  td.mono{font-family:var(--font-mono); color:var(--text);}
+  .status-tag{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:var(--font-mono); font-size:11px;
+    padding:2px 8px; border-radius:3px;
+    border:1px solid var(--border);
+  }
+
+  .placeholder-page{
+    border:1px dashed var(--border);
+    border-radius:6px;
+    padding:60px 40px;
+    text-align:center;
+    color:var(--text-muted);
+  }
+  .placeholder-page .ph-title{
+    font-family:var(--font-mono);
+    color:var(--text);
+    font-size:16px;
+    margin-bottom:8px;
+  }
+  .placeholder-page .ph-phase{
+    display:inline-block;
+    margin-top:16px;
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--signal);
+    border:1px solid rgba(232,163,61,0.3);
+    background:rgba(232,163,61,0.06);
+    padding:4px 10px;
+    border-radius:3px;
+  }
+
+  .banner{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 16px;
+    border:1px solid rgba(232,163,61,0.3);
+    background:rgba(232,163,61,0.06);
+    border-radius:5px;
+    font-size:12.5px;
+    color:var(--signal);
+    margin-bottom:20px;
+    font-family:var(--font-mono);
+  }
+  .loading{color:var(--text-dim); font-family:var(--font-mono); font-size:12px;}
+
+  /* ---------- Release form ---------- */
+  .release-form{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:14px;
+    align-items:end;
+  }
+  @media (max-width:1100px){ .release-form{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:680px){ .release-form{grid-template-columns:1fr;} }
+  .field{display:flex; flex-direction:column; gap:6px;}
+  .field label{
+    font-size:10.5px;
+    color:var(--text-dim);
+    letter-spacing:0.05em;
+  }
+  .field input, .field select{
+    background:var(--bg);
+    border:1px solid var(--border);
+    border-radius:4px;
+    color:var(--text);
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    padding:8px 10px;
+    outline:none;
+  }
+  .field input:focus, .field select:focus{border-color:var(--signal);}
+  .field-submit{justify-content:flex-end;}
+  .field-submit button{
+    background:var(--signal);
+    color:#1a1206;
+    border:none;
+    border-radius:4px;
+    padding:9px 16px;
+    font-family:var(--font-ui);
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+    transition:opacity 0.12s ease;
+  }
+  .field-submit button:hover{opacity:0.9;}
+  .field-submit button:disabled{opacity:0.5; cursor:not-allowed;}
+  .form-msg{
+    margin-top:12px;
+    font-family:var(--font-mono);
+    font-size:12px;
+    min-height:16px;
+  }
+  .form-msg.success{color:var(--pass);}
+  .form-msg.error{color:var(--fail);}
+
+  /* ---------- Standalone select / analyze button (Release Analysis) ---------- */
+  #analysisReleaseSelect{
+    background:var(--bg);
+    border:1px solid var(--border);
+    border-radius:4px;
+    color:var(--text);
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    padding:8px 10px;
+    min-width:300px;
+    outline:none;
+  }
+  #analysisReleaseSelect:focus{border-color:var(--signal);}
+  .analyze-btn{
+    background:var(--signal);
+    color:#1a1206;
+    border:none;
+    border-radius:4px;
+    padding:9px 18px;
+    font-family:var(--font-ui);
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+  }
+  .analyze-btn:disabled{opacity:0.4; cursor:not-allowed;}
+  .analyze-btn:not(:disabled):hover{opacity:0.9;}
+
+  /* ---------- Evidence pipeline stage flow ---------- */
+  .stage-flow{display:flex; align-items:flex-start; gap:0; min-width:max-content;}
+  .stage-arrow{
+    color:var(--text-dim);
+    font-family:var(--font-mono);
+    font-size:16px;
+    padding:22px 6px 0;
+    flex-shrink:0;
+  }
+  .stage-card{
+    width:150px;
+    flex-shrink:0;
+    border:1px solid var(--border);
+    border-radius:5px;
+    background:var(--surface-raised);
+    cursor:pointer;
+    transition:border-color 0.12s ease;
+  }
+  .stage-card:hover{border-color:var(--signal);}
+  .stage-card-head{
+    padding:10px 10px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    align-items:flex-start;
+  }
+  .stage-name{
+    font-size:11px;
+    font-weight:600;
+    letter-spacing:0.02em;
+  }
+  .stage-status{
+    font-family:var(--font-mono);
+    font-size:9.5px;
+    color:var(--text-dim);
+  }
+
+  .toolbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .tool-select{
+    background:var(--bg);
+    border:1px solid var(--border);
+    border-radius:4px;
+    color:var(--text);
+    font-family:var(--font-mono);
+    font-size:12px;
+    padding:7px 10px;
+    outline:none;
+  }
+  .tool-select:focus{border-color:var(--signal);}
+  .ghost-btn{
+    background:transparent;
+    color:var(--text-muted);
+    border:1px solid var(--border);
+    border-radius:4px;
+    padding:7px 10px;
+    font-family:var(--font-ui);
+    font-size:12px;
+    cursor:pointer;
+  }
+  .ghost-btn:hover{color:var(--text); border-color:var(--signal);}
+  .metric-list{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+    margin-top:14px;
+  }
+  .metric-box{
+    border:1px solid var(--border-soft);
+    background:var(--surface-raised);
+    border-radius:5px;
+    padding:10px 12px;
+  }
+  .metric-box .k{font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em;}
+  .metric-box .v{font-family:var(--font-mono); font-size:15px; margin-top:3px;}
+  .policy-box{
+    border:1px solid rgba(239,83,80,.28);
+    background:rgba(239,83,80,.05);
+    border-radius:5px;
+    padding:14px 16px;
+    margin-bottom:18px;
+  }
+  .stage-card-body{
+    padding:0 10px 12px;
+    border-top:1px solid var(--border-soft);
+    margin-top:2px;
+    padding-top:8px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <div class="brand-dot"></div>
+        <div class="brand-name">PRODPROOF</div>
+      </div>
+      <div class="brand-sub">Release Readiness &amp; Risk Engine</div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <div class="nav-group">
+        <div class="nav-item active" data-page="overview"><span class="n">01</span>Overview</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">RELEASE</div>
+        <div class="nav-item" data-page="releases"><span class="n">02</span>Releases</div>
+        <div class="nav-item" data-page="analysis"><span class="n">03</span>Release Analysis</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">EVIDENCE</div>
+        <div class="nav-item" data-page="production"><span class="n">04</span>Production Context</div>
+        <div class="nav-item" data-page="dependencies"><span class="n">05</span>Dependencies</div>
+        <div class="nav-item" data-page="infrastructure"><span class="n">06</span>Infrastructure</div>
+        <div class="nav-item" data-page="kubernetes"><span class="n">07</span>Kubernetes</div>
+        <div class="nav-item" data-page="security"><span class="n">08</span>Security Evidence</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">DECISION</div>
+        <div class="nav-item" data-page="risk"><span class="n">09</span>Risk Engine</div>
+        <div class="nav-item" data-page="policies"><span class="n">10</span>Policies</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">OPERATIONS</div>
+        <div class="nav-item" data-page="history"><span class="n">11</span>History</div>
+        <div class="nav-item" data-page="audit"><span class="n">12</span>Audit</div>
+        <div class="nav-item" data-page="settings"><span class="n">13</span>Settings</div>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot" id="apiFoot">api: connecting…</div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="page-title" id="pageTitle">Overview</div>
+        <div class="env-pill" id="envPill">env: —</div>
+      </div>
+      <div class="topbar-right">
+        <div class="status-chip" id="dbChip"><span class="dot off"></span>database</div>
+        <div class="status-chip" id="demoChip"><span class="dot off"></span>mode</div>
+      </div>
+    </div>
+
+    <div class="content" id="content">
+      <!-- injected per page -->
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API_BASE = '';
+
+const PAGE_TITLES = {
+  overview: 'Overview',
+  releases: 'Releases',
+  analysis: 'Release Analysis',
+  production: 'Production Context',
+  dependencies: 'Dependencies',
+  infrastructure: 'Infrastructure',
+  kubernetes: 'Kubernetes',
+  security: 'Security Evidence',
+  risk: 'Risk Engine',
+  policies: 'Policies',
+  history: 'History',
+  audit: 'Audit',
+  settings: 'Settings',
+};
+
+const PHASE_MAP = {};
+
+let health = null;
+
+async function fetchHealth() {
+  try {
+    const res = await fetch(`${API_BASE}/api/health`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    health = await res.json();
+  } catch (err) {
+    health = { error: err.message };
+  }
+  renderTopbar();
+}
+
+function renderTopbar() {
+  const foot = document.getElementById('apiFoot');
+  const envPill = document.getElementById('envPill');
+  const dbChip = document.getElementById('dbChip');
+  const demoChip = document.getElementById('demoChip');
+
+  if (!health || health.error) {
+    foot.textContent = `api: unreachable`;
+    envPill.textContent = 'env: unknown';
+    dbChip.innerHTML = `<span class="dot fail"></span>database: down`;
+    demoChip.innerHTML = `<span class="dot off"></span>mode: —`;
+    return;
+  }
+
+  foot.textContent = `api: ${health.status} · v0.3.0-phase3-14`;
+  envPill.textContent = `env: ${health.app_env}`;
+  dbChip.innerHTML = health.database.connected
+    ? `<span class="dot pass"></span>database: connected`
+    : `<span class="dot fail"></span>database: ${health.database.error ? 'error' : 'down'}`;
+  demoChip.innerHTML = health.demo_mode
+    ? `<span class="dot warn"></span>mode: demo`
+    : `<span class="dot pass"></span>mode: production`;
+}
+
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[ch]));
+}
+
+function integrationRow(i) {
+  const dotClass = i.configured ? 'pass' : 'off';
+  const statusLabel = i.configured ? 'CONFIGURED' : 'NOT_CONFIGURED';
+  return `<tr>
+    <td class="mono">${i.name}</td>
+    <td>${i.detail}</td>
+    <td><span class="status-tag"><span class="dot ${dotClass}"></span>${statusLabel}</span></td>
+  </tr>`;
+}
+
+async function renderOverview() {
+  const c = document.getElementById('content');
+
+  if (!health || health.error) {
+    c.innerHTML = `
+      <div class="banner">⚠ Backend unreachable at ${API_BASE || '(same origin)'}/api/health.</div>
+      <div class="placeholder-page">
+        <div class="ph-title">No production data available</div>
+        <div>PRODPROOF has not established a connection to its backend.</div>
+      </div>`;
+    return;
+  }
+
+  const warnings = (health.config_warnings || []).map(w =>
+    `<div class="banner">⚠ ${w}</div>`
+  ).join('');
+
+  let releases = [];
+  let activeRelease = null;
+  let analysis = null;
+  let analysisError = null;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/releases`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    releases = await res.json();
+    activeRelease = releases[0] || null;
+
+    if (activeRelease) {
+      const ares = await fetch(`${API_BASE}/api/releases/${activeRelease.id}/analysis`);
+      if (ares.ok) {
+        analysis = await ares.json();
+      } else if (ares.status !== 404) {
+        analysisError = `HTTP ${ares.status}`;
+      }
+    }
+  } catch (err) {
+    analysisError = err.message;
+  }
+
+  const decisionLabel = analysis ? analysis.decision : (activeRelease ? 'NOT ANALYZED' : 'NO RELEASE');
+  const decisionClass = analysis ? decisionColor(analysis.decision) : 'var(--text-dim)';
+  const primaryReason = analysis
+    ? analysis.primary_reason
+    : activeRelease
+      ? 'This release is stored but has no completed analysis yet.'
+      : 'Create a release to begin the evidence-driven readiness pipeline.';
+
+  const stageRows = analysis
+    ? analysis.stages.map(s => `
+        <tr>
+          <td class="mono">${s.name}</td>
+          <td><span class="status-tag"><span class="dot ${evidenceDot(s.evidence.status)}"></span>${s.evidence.status}</span></td>
+          <td>${s.evidence.summary}</td>
+          <td class="mono">${s.evidence.source}</td>
+        </tr>`).join('')
+    : `<tr><td colspan="4" style="text-align:center; color:var(--text-dim); padding:24px;">No analysis available for the latest release.</td></tr>`;
+
+  const recentRows = releases.length === 0
+    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-dim); padding:24px;">No releases submitted yet.</td></tr>`
+    : releases.slice(0, 5).map(r => `<tr>
+        <td class="mono">#${r.id}</td>
+        <td class="mono">${r.application}</td>
+        <td class="mono">${r.version}</td>
+        <td><span class="status-tag"><span class="dot ${releaseStatusDot(r.status)}"></span>${r.status}</span></td>
+        <td class="mono">${new Date((r.created_at || '').endsWith('Z') ? r.created_at : `${r.created_at}Z`).toLocaleString()}</td>
+      </tr>`).join('');
+
+  const dependencyStage = analysis?.stages?.find(s => s.name === 'DEPENDENCIES');
+  const rollbackStage = analysis?.stages?.find(s => s.name === 'ROLLBACK');
+
+  c.innerHTML = `
+    ${warnings}
+    ${analysisError ? `<div class="banner" style="border-color:var(--border); background:var(--surface); color:var(--text-muted);">Analysis lookup: ${analysisError}</div>` : ''}
+
+    <div class="hero">
+      <div>
+        <div class="hero-label">CURRENT RELEASE DECISION</div>
+        <div class="hero-decision" style="color:${decisionClass}">${decisionLabel}</div>
+        <div class="hero-reason">${primaryReason}</div>
+        ${activeRelease ? `
+          <div style="margin-top:12px; font-size:12px; color:var(--text-dim);">
+            release #${activeRelease.id} · ${activeRelease.application} · ${activeRelease.version} · ${activeRelease.environment}
+          </div>` : ''}
+      </div>
+      <div class="hero-meta">
+        <div class="hero-meta-row">environment <b>${activeRelease?.environment || health.app_env}</b></div>
+        <div class="hero-meta-row">risk <b>${analysis ? `${analysis.risk_score}/100 · ${analysis.risk_level}` : 'NOT ANALYZED'}</b></div>
+        <div class="hero-meta-row">mode <b>${health.demo_mode ? 'demo' : 'production'}</b></div>
+        <div class="hero-meta-row">backend <b>${health.status}</b></div>
+        ${analysis ? `<div class="hero-meta-row">analyzed <b>${new Date(analysis.analyzed_at).toLocaleString()}</b></div>` : ''}
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="tile">
+        <div class="tile-head"><div class="tile-title">DATABASE</div></div>
+        <div class="tile-value" style="color:${health.database.connected ? 'var(--pass)' : 'var(--fail)'}">${health.database.connected ? 'CONNECTED' : 'DOWN'}</div>
+        <div class="tile-sub">MySQL · prodproof</div>
+      </div>
+      <div class="tile">
+        <div class="tile-head"><div class="tile-title">LATEST RISK</div></div>
+        <div class="tile-value">${analysis ? analysis.risk_score : '—'}</div>
+        <div class="tile-sub">${analysis ? `${analysis.risk_level} · source: analysis` : 'No analysis yet'}</div>
+      </div>
+      <div class="tile">
+        <div class="tile-head"><div class="tile-title">DEPENDENCIES</div></div>
+        <div class="tile-value dim">${dependencyStage ? dependencyStage.evidence.status : 'NOT ANALYZED'}</div>
+        <div class="tile-sub">${dependencyStage ? dependencyStage.evidence.source : 'Release analysis'}</div>
+      </div>
+      <div class="tile">
+        <div class="tile-head"><div class="tile-title">ROLLBACK</div></div>
+        <div class="tile-value dim">${rollbackStage ? rollbackStage.evidence.status : 'NOT ANALYZED'}</div>
+        <div class="tile-sub">${rollbackStage ? rollbackStage.evidence.source : 'Release analysis'}</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Latest Evidence Pipeline</div>
+        <div class="loading">${analysis ? `release #${analysis.release_id}` : 'no analysis'}</div>
+      </div>
+      <div class="section-body">
+        <table>
+          <thead><tr><th>Stage</th><th>Status</th><th>Summary</th><th>Source</th></tr></thead>
+          <tbody>${stageRows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    ${analysis && (analysis.policy_overrides || []).length
+      ? `<div class="policy-box">
+          <div class="section-title" style="margin-bottom:8px;">Policy Overrides</div>
+          ${(analysis.policy_overrides || []).map(p => `<div style="font-size:12.5px; color:var(--text-muted); padding:4px 0;">• ${p}</div>`).join('')}
+        </div>`
+      : ''}
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Integration Status</div>
+        <div class="loading">source: /api/health</div>
+      </div>
+      <div class="section-body">
+        <table>
+          <thead><tr><th>Integration</th><th>Role</th><th>Status</th></tr></thead>
+          <tbody>${(health.integrations || []).map(integrationRow).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Recent Releases</div>
+        <div class="loading">source: /api/releases</div>
+      </div>
+      <div class="section-body">
+        <table>
+          <thead><tr><th>ID</th><th>Application</th><th>Version</th><th>Status</th><th>Created</th></tr></thead>
+          <tbody>${recentRows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderPlaceholder(page) {
+  const c = document.getElementById('content');
+  c.innerHTML = `
+    <div class="placeholder-page">
+      <div class="ph-title">${PAGE_TITLES[page]}</div>
+      <div>This module has not been built yet. PRODPROOF is under incremental construction — no fake data is shown for unbuilt modules.</div>
+      <div class="ph-phase">${PHASE_MAP[page] || 'Scheduled in a later phase'}</div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------------
+// Releases page (Phase 2)
+// ---------------------------------------------------------------------
+
+function releaseStatusDot(status) {
+  if (!status) return 'off';
+  if (status.includes('OVERRIDDEN')) return 'warn';
+  if (status.includes('APPROVE') || status === 'APPROVED') return 'pass';
+  if (status.includes('BLOCK') || status === 'BLOCKED') return 'fail';
+  if (status.includes('REVIEW') || status === 'READY_FOR_ANALYSIS') return 'warn';
+  return 'off';
+}
+
+function releaseRow(r) {
+  const created = new Date((r.created_at || '').endsWith('Z') ? r.created_at : `${r.created_at}Z`);
+  const createdLabel = isNaN(created.getTime()) ? r.created_at : created.toLocaleString();
+  return `<tr>
+    <td class="mono">#${r.id}</td>
+    <td class="mono">${r.application}</td>
+    <td class="mono">${r.version}</td>
+    <td>${r.environment}</td>
+    <td class="mono">${r.docker_image || '—'}</td>
+    <td class="mono">${r.jenkins_job_name || '—'}</td>
+    <td><span class="status-tag"><span class="dot ${releaseStatusDot(r.status)}"></span>${r.status}</span></td>
+    <td class="mono">${createdLabel}</td>
+  </tr>`;
+}
+
+function renderReleasesShell() {
+  const c = document.getElementById('content');
+  c.innerHTML = `
+    <div class="section" style="margin-bottom:22px;">
+      <div class="section-head">
+        <div class="section-title">Create Release</div>
+        <div class="loading">Phase 14 release input</div>
+      </div>
+      <div class="section-body" style="padding:18px;">
+        <form id="releaseForm" class="release-form">
+          <div class="field"><label>Application</label><input type="text" name="application" placeholder="payment-service" required maxlength="100" /></div>
+          <div class="field"><label>Version</label><input type="text" name="version" placeholder="v1.4.2" required maxlength="100" /></div>
+          <div class="field"><label>Environment</label>
+            <select name="environment" required>
+              <option value="">Select…</option>
+              <option value="development">development</option>
+              <option value="staging">staging</option>
+              <option value="production">production</option>
+            </select>
+          </div>
+          <div class="field"><label>Git Commit</label><input type="text" name="git_commit" placeholder="a1b2c3d" required maxlength="100" /></div>
+          <div class="field"><label>Release Type</label>
+            <select name="release_type" required>
+              <option value="">Select…</option>
+              <option value="standard">standard</option>
+              <option value="hotfix">hotfix</option>
+              <option value="rollback">rollback</option>
+            </select>
+          </div>
+          <div class="field"><label>Docker Image</label><input type="text" name="docker_image" placeholder="payment-service:v1.4.2" /></div>
+          <div class="field"><label>Expected Replicas</label><input type="number" name="expected_replicas" min="0" placeholder="3" /></div>
+          <div class="field"><label>CPU (millicores)</label><input type="number" name="cpu_millicores" min="0" placeholder="500" /></div>
+          <div class="field"><label>Memory (MB)</label><input type="number" name="memory_mb" min="0" placeholder="512" /></div>
+          <div class="field"><label>DB Connections</label><input type="number" name="db_connections_required" min="0" placeholder="10" /></div>
+          <div class="field"><label>Dependencies</label><input type="text" name="dependency_list" placeholder="auth-service,inventory-service,payment-db" /></div>
+          <div class="field"><label>Rollback Version</label><input type="text" name="rollback_version" placeholder="v1.3.2" /></div>
+          <div class="field"><label>Jenkins Job</label><input type="text" name="jenkins_job_name" placeholder="AutoHeal-CI" /></div>
+          <div class="field field-submit"><button type="submit" id="releaseSubmitBtn">Create Release</button></div>
+        </form>
+        <div id="releaseFormMsg" class="form-msg"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">All Releases</div>
+        <div class="loading" id="releasesMeta">loading…</div>
+      </div>
+      <div class="section-body">
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Application</th><th>Version</th><th>Environment</th><th>Image</th><th>Jenkins</th><th>Status</th><th>Created</th></tr>
+          </thead>
+          <tbody id="releasesTbody">
+            <tr><td colspan="8" style="text-align:center; color:var(--text-dim); padding:24px;">Loading releases…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('releaseForm').addEventListener('submit', onCreateRelease);
+  loadReleases();
+}
+
+async function loadReleases() {
+  const tbody = document.getElementById('releasesTbody');
+  const meta = document.getElementById('releasesMeta');
+  if (!tbody) return; // user navigated away before this resolved
+
+  try {
+    const res = await fetch(`${API_BASE}/api/releases`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const releases = await res.json();
+
+    if (!document.getElementById('releasesTbody')) return;
+
+    if (releases.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-dim); padding:24px;">No releases yet — create one above.</td></tr>`;
+    } else {
+      tbody.innerHTML = releases.map(releaseRow).join('');
+    }
+    meta.textContent = `${releases.length} release${releases.length === 1 ? '' : 's'} · source: /api/releases`;
+  } catch (err) {
+    if (!document.getElementById('releasesTbody')) return;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--fail); padding:24px;">Failed to load releases: ${err.message}</td></tr>`;
+    meta.textContent = 'error';
+  }
+}
+
+async function onCreateRelease(e) {
+  e.preventDefault();
+  const form = e.target;
+  const btn = document.getElementById('releaseSubmitBtn');
+  const msg = document.getElementById('releaseFormMsg');
+  const fd = new FormData(form);
+
+  const optionalInt = (name) => {
+    const raw = String(fd.get(name) ?? '').trim();
+    return raw === '' ? null : Number.parseInt(raw, 10);
+  };
+
+  const payload = {
+    application: String(fd.get('application') || '').trim(),
+    version: String(fd.get('version') || '').trim(),
+    environment: fd.get('environment'),
+    git_commit: String(fd.get('git_commit') || '').trim(),
+    release_type: fd.get('release_type'),
+    docker_image: String(fd.get('docker_image') || '').trim() || null,
+    expected_replicas: optionalInt('expected_replicas'),
+    cpu_millicores: optionalInt('cpu_millicores'),
+    memory_mb: optionalInt('memory_mb'),
+    db_connections_required: optionalInt('db_connections_required'),
+    dependency_list: String(fd.get('dependency_list') || '').trim() || null,
+    rollback_version: String(fd.get('rollback_version') || '').trim() || null,
+    jenkins_job_name: String(fd.get('jenkins_job_name') || '').trim() || null,
+  };
+
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+  msg.textContent = '';
+  msg.className = 'form-msg';
+
+  try {
+    const res = await fetch(`${API_BASE}/api/releases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail ? JSON.stringify(body.detail) : `HTTP ${res.status}`);
+    }
+
+    const created = await res.json();
+    msg.textContent = `✓ Created release #${created.id} (${created.application} ${created.version})`;
+    msg.className = 'form-msg success';
+    form.reset();
+    await loadReleases();
+  } catch (err) {
+    msg.textContent = `✗ ${err.message}`;
+    msg.className = 'form-msg error';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create Release';
+  }
+}
+
+function evidenceDot(status) {
+  if (status === 'PASS') return 'pass';
+  if (status === 'WARNING') return 'warn';
+  if (status === 'FAIL') return 'fail';
+  return 'off'; // UNAVAILABLE / NOT_CONFIGURED
+}
+
+function evidenceCard(title, env) {
+  if (!env) return `<div class="section"><div class="section-head"><div class="section-title">${title}</div></div><div class="section-body" style="padding:20px; color:var(--text-dim);">Loading…</div></div>`;
+  const metricsRows = Object.entries(env.metrics || {}).map(([k, v]) =>
+    `<tr><td class="mono">${k}</td><td class="mono">${Array.isArray(v) ? v.join(', ') : v}</td></tr>`
+  ).join('');
+  const findingsList = (env.findings || []).map(f => `<div style="padding:5px 0; font-size:12.5px; color:var(--text-muted);">• ${f}</div>`).join('');
+  return `
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">${title}</div>
+        <span class="status-tag"><span class="dot ${evidenceDot(env.status)}"></span>${env.status}</span>
+      </div>
+      <div class="section-body" style="padding:16px 18px;">
+        <div style="color:var(--text-muted); font-size:13px; margin-bottom:6px;">${env.summary}</div>
+        <div style="font-family:var(--font-mono); font-size:10.5px; color:var(--text-dim); margin-bottom:12px;">source: ${env.source}</div>
+        ${metricsRows ? `<table style="margin-bottom:10px;"><tbody>${metricsRows}</tbody></table>` : ''}
+        ${findingsList}
+      </div>
+    </div>`;
+}
+
+async function renderSimpleEvidencePage(url, title, note) {
+  const c = document.getElementById('content');
+  c.innerHTML = (note ? `<div class="banner" style="border-color:var(--border); background:var(--surface); color:var(--text-muted);">${note}</div>` : '') + evidenceCard(title, null);
+  try {
+    const res = await fetch(`${API_BASE}${url}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    c.innerHTML = (note ? `<div class="banner" style="border-color:var(--border); background:var(--surface); color:var(--text-muted);">${note}</div>` : '') + evidenceCard(title, data);
+  } catch (err) {
+    c.innerHTML = `<div class="banner">⚠ Failed to load: ${err.message}</div>`;
+  }
+}
+
+function renderProductionPage() { renderSimpleEvidencePage('/api/production/context', 'Production Context'); }
+function renderSecurityPage() { renderSimpleEvidencePage('/api/security/evidence', 'Security Evidence'); }
+function renderInfrastructurePage() { renderSimpleEvidencePage('/api/infrastructure/changes', 'Infrastructure Changes (Terraform)'); }
+function renderKubernetesPage() { renderSimpleEvidencePage('/api/kubernetes/readiness', 'Kubernetes Readiness', 'Showing cluster-wide readiness with default assumptions. Analyze a specific release from Release Analysis to see its actual replica requirements checked.'); }
+
+async function renderDependenciesPage() {
+  const c = document.getElementById('content');
+  c.innerHTML = `<div class="section"><div class="section-body" style="padding:20px; color:var(--text-dim);">Loading…</div></div>`;
+  try {
+    const res = await fetch(`${API_BASE}/api/dependencies`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const rows = (data.graph || []).map(n => `<tr>
+      <td class="mono">${n.name}</td>
+      <td>${n.criticality}</td>
+      <td><span class="status-tag"><span class="dot ${evidenceDot(n.status)}"></span>${n.status}</span></td>
+      <td>${n.note || '—'}</td>
+    </tr>`).join('');
+    c.innerHTML = `
+      <div class="section">
+        <div class="section-head">
+          <div class="section-title">Dependency Map</div>
+          <span class="status-tag"><span class="dot ${evidenceDot(data.status)}"></span>${data.status}</span>
+        </div>
+        <div class="section-body" style="padding:16px 18px;">
+          <div style="color:var(--text-muted); font-size:13px; margin-bottom:4px;">${data.summary}</div>
+          <div style="font-family:var(--font-mono); font-size:10.5px; color:var(--text-dim); margin-bottom:14px;">source: ${data.source} — analyze a specific release to see its own declared dependency list.</div>
+          <table>
+            <thead><tr><th>Service</th><th>Criticality</th><th>Status</th><th>Note</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="4" style="text-align:center; color:var(--text-dim); padding:20px;">No dependency data.</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>`;
+  } catch (err) {
+    c.innerHTML = `<div class="banner">⚠ Failed to load dependencies: ${err.message}</div>`;
+  }
+}
+
+function renderRiskEnginePage() {
+  const c = document.getElementById('content');
+  c.innerHTML = `
+    <div class="section" style="margin-bottom:22px;">
+      <div class="section-head"><div class="section-title">Manual Risk Evaluation</div></div>
+      <div class="section-body" style="padding:18px;">
+        <div style="color:var(--text-muted); font-size:12.5px; margin-bottom:14px;">
+          Scores six inputs directly (POST /api/releases/evaluate) — independent of any stored release.
+          For the full evidence-driven pipeline against a stored release, use Release Analysis instead.
+        </div>
+        <form id="riskForm" class="release-form" style="grid-template-columns:repeat(3,1fr);">
+          <div class="field"><label>Application</label><input type="text" name="application" required maxlength="100" placeholder="payment-service" /></div>
+          <div class="field"><label>Version</label><input type="text" name="version" required maxlength="100" placeholder="v1.4.2" /></div>
+          <div class="field">
+            <label>Environment</label>
+            <select name="environment" required>
+              <option value="">Select…</option>
+              <option value="development">development</option>
+              <option value="staging">staging</option>
+              <option value="production">production</option>
+            </select>
+          </div>
+          <div class="field"><label>Vulnerability Count</label><input type="number" name="vulnerability_count" min="0" value="0" required /></div>
+          <div class="field"><label>Failed Pipeline Count</label><input type="number" name="failed_pipeline_count" min="0" value="0" required /></div>
+          <div class="field"></div>
+          <div class="field" style="flex-direction:row; align-items:center; gap:8px;"><input type="checkbox" name="tests_passed" checked style="width:auto;" /><label style="margin:0;">Tests passed</label></div>
+          <div class="field" style="flex-direction:row; align-items:center; gap:8px;"><input type="checkbox" name="security_scan_passed" checked style="width:auto;" /><label style="margin:0;">Security scan passed</label></div>
+          <div class="field" style="flex-direction:row; align-items:center; gap:8px;"><input type="checkbox" name="infrastructure_drift" style="width:auto;" /><label style="margin:0;">Infrastructure drift</label></div>
+          <div class="field" style="flex-direction:row; align-items:center; gap:8px;"><input type="checkbox" name="rollback_ready" checked style="width:auto;" /><label style="margin:0;">Rollback ready</label></div>
+          <div class="field field-submit"><button type="submit" id="riskSubmitBtn">Evaluate</button></div>
+        </form>
+      </div>
+    </div>
+    <div id="riskResult"></div>
+  `;
+  document.getElementById('riskForm').addEventListener('submit', onEvaluateRisk);
+}
+
+async function onEvaluateRisk(e) {
+  e.preventDefault();
+  const form = e.target;
+  const btn = document.getElementById('riskSubmitBtn');
+  const resultDiv = document.getElementById('riskResult');
+  const fd = new FormData(form);
+  const payload = {
+    application: fd.get('application'),
+    version: fd.get('version'),
+    environment: fd.get('environment'),
+    tests_passed: form.tests_passed.checked,
+    security_scan_passed: form.security_scan_passed.checked,
+    infrastructure_drift: form.infrastructure_drift.checked,
+    rollback_ready: form.rollback_ready.checked,
+    vulnerability_count: parseInt(fd.get('vulnerability_count'), 10) || 0,
+    failed_pipeline_count: parseInt(fd.get('failed_pipeline_count'), 10) || 0,
+  };
+  btn.disabled = true;
+  btn.textContent = 'Evaluating…';
+  try {
+    const res = await fetch(`${API_BASE}/api/releases/evaluate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    resultDiv.innerHTML = `
+      <div class="hero">
+        <div>
+          <div class="hero-label">RISK RESULT</div>
+          <div class="hero-decision" style="color:${decisionColor(data.decision)}">${data.decision}</div>
+          <div class="hero-reason">${data.reasons.map(r => '• ' + r).join('<br/>')}</div>
+        </div>
+        <div class="hero-meta">
+          <div class="hero-meta-row">risk score <b>${data.risk_score}/100</b></div>
+          <div class="hero-meta-row">risk level <b>${data.risk_level}</b></div>
+        </div>
+      </div>`;
+  } catch (err) {
+    resultDiv.innerHTML = `<div class="banner">⚠ ${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Evaluate';
+  }
+}
+
+async function renderPoliciesPage() {
+  const c = document.getElementById('content');
+  c.innerHTML = `
+    <div class="section" style="margin-bottom:22px;">
+      <div class="section-head"><div class="section-title">Add Policy</div></div>
+      <div class="section-body" style="padding:18px;">
+        <form id="policyForm" class="release-form" style="grid-template-columns:repeat(3,1fr);">
+          <div class="field"><label>Name</label><input type="text" name="name" required maxlength="150" placeholder="Block on X" /></div>
+          <div class="field"><label>Field (dotted path)</label><input type="text" name="field" required maxlength="150" placeholder="security.critical_vulnerabilities" /></div>
+          <div class="field">
+            <label>Operator</label>
+            <select name="operator" required>
+              <option value="gt">greater than</option>
+              <option value="gte">greater or equal</option>
+              <option value="lt">less than</option>
+              <option value="lte">less or equal</option>
+              <option value="eq">equals</option>
+              <option value="is_true">is true</option>
+              <option value="is_false">is false</option>
+            </select>
+          </div>
+          <div class="field"><label>Threshold (blank for is_true/is_false)</label><input type="number" name="threshold" step="any" /></div>
+          <div class="field">
+            <label>Action</label>
+            <select name="action" required>
+              <option value="BLOCK">BLOCK</option>
+              <option value="REVIEW">REVIEW</option>
+            </select>
+          </div>
+          <div class="field field-submit"><button type="submit" id="policySubmitBtn">Add Policy</button></div>
+        </form>
+        <div id="policyFormMsg" class="form-msg"></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-head"><div class="section-title">Configured Policies</div><div class="loading" id="policiesMeta">loading…</div></div>
+      <div class="section-body">
+        <table>
+          <thead><tr><th>Name</th><th>Field</th><th>Condition</th><th>Action</th><th>Enabled</th></tr></thead>
+          <tbody id="policiesTbody"><tr><td colspan="5" style="text-align:center; color:var(--text-dim); padding:24px;">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>`;
+  document.getElementById('policyForm').addEventListener('submit', onCreatePolicy);
+  loadPolicies();
+}
+
+async function loadPolicies() {
+  const tbody = document.getElementById('policiesTbody');
+  const meta = document.getElementById('policiesMeta');
+  if (!tbody) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/policies`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const policies = await res.json();
+    if (!document.getElementById('policiesTbody')) return;
+    tbody.innerHTML = policies.length === 0
+      ? `<tr><td colspan="5" style="text-align:center; color:var(--text-dim); padding:24px;">No policies configured.</td></tr>`
+      : policies.map(p => `<tr>
+          <td class="mono">${p.name}</td>
+          <td class="mono">${p.field}</td>
+          <td class="mono">${p.operator}${p.threshold !== null ? ' ' + p.threshold : ''}</td>
+          <td><span class="status-tag"><span class="dot ${p.action === 'BLOCK' ? 'fail' : 'warn'}"></span>${p.action}</span></td>
+          <td>${p.enabled ? 'Yes' : 'No'}</td>
+        </tr>`).join('');
+    meta.textContent = `${policies.length} polic${policies.length === 1 ? 'y' : 'ies'} · source: /api/policies`;
+  } catch (err) {
+    if (!document.getElementById('policiesTbody')) return;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--fail); padding:24px;">Failed to load: ${err.message}</td></tr>`;
+  }
+}
+
+async function onCreatePolicy(e) {
+  e.preventDefault();
+  const form = e.target;
+  const btn = document.getElementById('policySubmitBtn');
+  const msg = document.getElementById('policyFormMsg');
+  const fd = new FormData(form);
+  const thresholdRaw = fd.get('threshold');
+  const payload = {
+    name: fd.get('name'),
+    field: fd.get('field'),
+    operator: fd.get('operator'),
+    threshold: thresholdRaw ? parseFloat(thresholdRaw) : null,
+    action: fd.get('action'),
+    enabled: true,
+  };
+  btn.disabled = true;
+  btn.textContent = 'Adding…';
+  try {
+    const res = await fetch(`${API_BASE}/api/policies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail ? JSON.stringify(body.detail) : `HTTP ${res.status}`);
+    }
+    msg.textContent = '✓ Policy added.';
+    msg.className = 'form-msg success';
+    form.reset();
+    await loadPolicies();
+  } catch (err) {
+    msg.textContent = `✗ ${err.message}`;
+    msg.className = 'form-msg error';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add Policy';
+  }
+}
+
+async function renderHistoryPage() {
+  const c = document.getElementById('content');
+  c.innerHTML = `<div class="section"><div class="section-head"><div class="section-title">Decision History</div><div class="loading" id="historyMeta">loading…</div></div>
+    <div class="section-body"><table>
+      <thead><tr><th>Application</th><th>Version</th><th>Environment</th><th>Risk</th><th>Score</th><th>Decision</th><th>Overridden</th><th>Date</th></tr></thead>
+      <tbody id="historyTbody"><tr><td colspan="8" style="text-align:center; color:var(--text-dim); padding:24px;">Loading…</td></tr></tbody>
+    </table></div></div>`;
+  try {
+    const res = await fetch(`${API_BASE}/api/history`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
+    const tbody = document.getElementById('historyTbody');
+    const meta = document.getElementById('historyMeta');
+    if (!tbody) return;
+    tbody.innerHTML = rows.length === 0
+      ? `<tr><td colspan="8" style="text-align:center; color:var(--text-dim); padding:24px;">No analyses yet — run one from Release Analysis.</td></tr>`
+      : rows.map(r => `<tr>
+          <td class="mono">${r.application}</td>
+          <td class="mono">${r.version}</td>
+          <td>${r.environment}</td>
+          <td>${r.risk_level}</td>
+          <td class="mono">${r.risk_score}</td>
+          <td><span class="status-tag"><span class="dot ${r.decision === 'APPROVE' ? 'pass' : r.decision === 'REVIEW' ? 'warn' : 'fail'}"></span>${r.decision}</span></td>
+          <td>${r.overridden ? 'Yes' : 'No'}</td>
+          <td class="mono">${new Date(r.created_at + 'Z').toLocaleString()}</td>
+        </tr>`).join('');
+    meta.textContent = `${rows.length} analysis run(s) · source: /api/history`;
+  } catch (err) {
+    const tbody = document.getElementById('historyTbody');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--fail); padding:24px;">Failed to load: ${err.message}</td></tr>`;
+  }
+}
+
+async function renderAuditPage() {
+  const c = document.getElementById('content');
+  c.innerHTML = `
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">Audit Trail</div>
+        <div class="toolbar">
+          <select id="auditReleaseFilter" class="tool-select">
+            <option value="">All releases</option>
+          </select>
+          <button id="auditRefreshBtn" class="ghost-btn">Refresh</button>
+          <div class="loading" id="auditMeta">loading…</div>
+        </div>
+      </div>
+      <div class="section-body">
+        <table>
+          <thead><tr><th>Event</th><th>Release</th><th>Actor</th><th>Detail</th><th>Date</th></tr></thead>
+          <tbody id="auditTbody"><tr><td colspan="5" style="text-align:center; color:var(--text-dim); padding:24px;">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>`;
+
+  const filter = document.getElementById('auditReleaseFilter');
+  const refresh = document.getElementById('auditRefreshBtn');
+
+  try {
+    const releaseRes = await fetch(`${API_BASE}/api/releases`);
+    if (releaseRes.ok) {
+      const releases = await releaseRes.json();
+      filter.innerHTML = `<option value="">All releases</option>` +
+        releases.map(r => `<option value="${r.id}">#${r.id} — ${r.application} ${r.version}</option>`).join('');
+    }
+  } catch (_) {}
+
+  async function loadAudit() {
+    const tbody = document.getElementById('auditTbody');
+    const meta = document.getElementById('auditMeta');
+    if (!tbody) return;
+
+    try {
+      const releaseId = filter.value;
+      const qs = releaseId ? `?release_id=${encodeURIComponent(releaseId)}` : '';
+      const res = await fetch(`${API_BASE}/api/audit${qs}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const rows = await res.json();
+
+      tbody.innerHTML = rows.length === 0
+        ? `<tr><td colspan="5" style="text-align:center; color:var(--text-dim); padding:24px;">No audit events.</td></tr>`
+        : rows.map(r => {
+            const dt = new Date((r.created_at || '').endsWith('Z') ? r.created_at : `${r.created_at}Z`);
+            return `<tr>
+              <td class="mono">${r.event_type}</td>
+              <td class="mono">${r.release_id ?? '—'}</td>
+              <td>${r.actor}</td>
+              <td>${r.detail}</td>
+              <td class="mono">${isNaN(dt.getTime()) ? r.created_at : dt.toLocaleString()}</td>
+            </tr>`;
+          }).join('');
+
+      meta.textContent = `${rows.length} event(s) · source: /api/audit`;
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--fail); padding:24px;">Failed to load: ${err.message}</td></tr>`;
+      meta.textContent = 'error';
+    }
+  }
+
+  filter.addEventListener('change', loadAudit);
+  refresh.addEventListener('click', loadAudit);
+  await loadAudit();
+}
+
+function renderSettingsPage() {
+  const c = document.getElementById('content');
+  if (!health || health.error) {
+    c.innerHTML = `<div class="banner">⚠ Backend unreachable — cannot load settings.</div>`;
+    return;
+  }
+  const rows = health.integrations.map(i => `<tr>
+    <td class="mono">${i.name}</td><td>${i.detail}</td>
+    <td><span class="status-tag"><span class="dot ${i.configured ? 'pass' : 'off'}"></span>${i.configured ? 'CONFIGURED' : 'NOT_CONFIGURED'}</span></td>
+  </tr>`).join('');
+  c.innerHTML = `
+    <div class="section" style="margin-bottom:22px;">
+      <div class="section-head"><div class="section-title">Runtime Configuration</div></div>
+      <div class="section-body" style="padding:16px 18px;">
+        <table>
+          <tbody>
+            <tr><td class="mono">Environment</td><td class="mono">${health.app_env}</td></tr>
+            <tr><td class="mono">Demo mode</td><td class="mono">${health.demo_mode}</td></tr>
+            <tr><td class="mono">Database</td><td class="mono">${health.database.connected ? 'connected' : 'disconnected'}</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:14px; font-size:12px; color:var(--text-dim);">
+          Settings are configured entirely through environment variables (see backend/.env.example) — nothing here is editable from the UI, so credentials are never exposed to or stored by the browser.
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-head"><div class="section-title">Integrations</div></div>
+      <div class="section-body"><table><thead><tr><th>Integration</th><th>Role</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
+    </div>`;
+}
+
+function decisionColor(decision) {
+  if (decision === 'APPROVE') return 'var(--pass)';
+  if (decision === 'REVIEW') return 'var(--warn)';
+  return 'var(--fail)';
+}
+
+let currentAnalysisReleaseId = null;
+
+async function renderAnalysisPage() {
+  const c = document.getElementById('content');
+  c.innerHTML = `
+    <div class="section" style="margin-bottom:22px;">
+      <div class="section-head"><div class="section-title">Select Release</div></div>
+      <div class="section-body" style="padding:16px 18px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <select id="analysisReleaseSelect">
+          <option value="">Loading releases…</option>
+        </select>
+        <button id="analyzeBtn" class="analyze-btn" disabled>Analyze</button>
+        <span id="analysisStatusMsg" class="loading"></span>
+      </div>
+    </div>
+    <div id="analysisResult"></div>
+  `;
+
+  const select = document.getElementById('analysisReleaseSelect');
+  const btn = document.getElementById('analyzeBtn');
+
+  try {
+    const res = await fetch(`${API_BASE}/api/releases`);
+    const releases = await res.json();
+    select.innerHTML = releases.length === 0
+      ? `<option value="">No releases yet — create one first</option>`
+      : `<option value="">Select a release…</option>` + releases.map(r => `<option value="${r.id}">#${r.id} — ${r.application} ${r.version} (${r.environment})</option>`).join('');
+  } catch (err) {
+    select.innerHTML = `<option value="">Failed to load releases</option>`;
+  }
+
+  select.addEventListener('change', async () => {
+    currentAnalysisReleaseId = select.value ? parseInt(select.value, 10) : null;
+    btn.disabled = !currentAnalysisReleaseId;
+    document.getElementById('analysisResult').innerHTML = '';
+    if (currentAnalysisReleaseId) await loadExistingAnalysis(currentAnalysisReleaseId);
+  });
+
+  if (select.options.length > 1 && !select.value) {
+    select.selectedIndex = 1;
+    currentAnalysisReleaseId = parseInt(select.value, 10);
+    btn.disabled = false;
+    await loadExistingAnalysis(currentAnalysisReleaseId);
+  }
+
+  btn.addEventListener('click', async () => {
+    if (!currentAnalysisReleaseId) return;
+    btn.disabled = true;
+    btn.textContent = 'Analyzing…';
+    document.getElementById('analysisStatusMsg').textContent = 'Running full evidence pipeline…';
+    try {
+      const res = await fetch(`${API_BASE}/api/releases/${currentAnalysisReleaseId}/analyze`, { method: 'POST' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const bundle = await res.json();
+      renderAnalysisBundle(bundle);
+      document.getElementById('analysisStatusMsg').textContent = '';
+    } catch (err) {
+      document.getElementById('analysisResult').innerHTML = `<div class="banner">⚠ Analysis failed: ${err.message}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Analyze';
+    }
+  });
+}
+
+async function loadExistingAnalysis(releaseId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/releases/${releaseId}/analysis`);
+    if (res.status === 404) {
+      document.getElementById('analysisResult').innerHTML = `<div class="banner" style="border-color:var(--border); background:var(--surface); color:var(--text-muted);">This release hasn't been analyzed yet. Click Analyze to run the full pipeline.</div>`;
+      return;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const bundle = await res.json();
+    renderAnalysisBundle(bundle);
+  } catch (err) {
+    document.getElementById('analysisResult').innerHTML = `<div class="banner">⚠ ${err.message}</div>`;
+  }
+}
+
+function renderAnalysisBundle(bundle) {
+  const stagesHtml = bundle.stages.map((s, i) => {
+    const metrics = Object.entries(s.evidence.metrics || {})
+      .filter(([_, v]) => !Array.isArray(v))
+      .slice(0, 8)
+      .map(([k, v]) => `<div style="display:flex; justify-content:space-between; gap:10px; padding:3px 0; font-size:10.5px;">
+          <span style="color:var(--text-dim);">${k}</span>
+          <span class="mono" style="color:var(--text-muted); text-align:right;">${v}</span>
+        </div>`).join('');
+
+    return `
+      <div class="stage-card" data-stage-idx="${i}">
+        <div class="stage-card-head">
+          <span class="dot ${evidenceDot(s.evidence.status)}"></span>
+          <span class="stage-name">${s.name}</span>
+          <span class="stage-status">${s.evidence.status}</span>
+        </div>
+        <div class="stage-card-body" style="display:none;">
+          <div style="color:var(--text-muted); font-size:12px; margin-bottom:8px;">${s.evidence.summary}</div>
+          <div style="font-family:var(--font-mono); font-size:10px; color:var(--text-dim); margin-bottom:8px;">source: ${s.evidence.source}</div>
+          ${metrics}
+          ${(s.evidence.findings || []).map(f => `<div style="font-size:11.5px; color:var(--text-muted); padding:3px 0;">• ${f}</div>`).join('')}
+        </div>
+      </div>`;
+  }).join('<div class="stage-arrow">→</div>');
+
+  const policyOverrides = bundle.policy_overrides || [];
+  const reasons = bundle.reasons || [];
+
+  const overrideSection = bundle.decision !== 'APPROVE' ? `
+    <div class="section" style="margin-top:18px;">
+      <div class="section-head"><div class="section-title">Override This Decision</div></div>
+      <div class="section-body" style="padding:16px 18px;">
+        <form id="overrideForm" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+          <div class="field" style="flex:1; min-width:200px;"><label>Reason</label><input type="text" name="reason" required placeholder="Why is this override justified?" /></div>
+          <div class="field" style="min-width:140px;"><label>Your name</label><input type="text" name="user" required placeholder="you" /></div>
+          <div class="field field-submit"><button type="submit" id="overrideSubmitBtn">Override</button></div>
+        </form>
+        <div id="overrideMsg" class="form-msg"></div>
+      </div>
+    </div>` : '';
+
+  document.getElementById('analysisResult').innerHTML = `
+    <div class="hero" style="margin-bottom:18px;">
+      <div>
+        <div class="hero-label">RELEASE DECISION — ${bundle.application} ${bundle.version} (${bundle.environment})</div>
+        <div class="hero-decision" style="color:${decisionColor(bundle.decision)}">${bundle.decision}</div>
+        <div class="hero-reason">${bundle.primary_reason}</div>
+      </div>
+      <div class="hero-meta">
+        <div class="hero-meta-row">risk score <b>${bundle.risk_score}/100</b></div>
+        <div class="hero-meta-row">risk level <b>${bundle.risk_level}</b></div>
+        <div class="hero-meta-row">analyzed <b>${new Date(bundle.analyzed_at).toLocaleString()}</b></div>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-bottom:18px;">
+      <div class="tile">
+        <div class="tile-title">DECISION</div>
+        <div class="tile-value" style="color:${decisionColor(bundle.decision)}">${bundle.decision}</div>
+        <div class="tile-sub">baseline + policy evaluation</div>
+      </div>
+      <div class="tile">
+        <div class="tile-title">RISK SCORE</div>
+        <div class="tile-value">${bundle.risk_score}/100</div>
+        <div class="tile-sub">${bundle.risk_level}</div>
+      </div>
+      <div class="tile">
+        <div class="tile-title">EVIDENCE STAGES</div>
+        <div class="tile-value">${bundle.stages.length}</div>
+        <div class="tile-sub">live evidence sources</div>
+      </div>
+      <div class="tile">
+        <div class="tile-title">POLICY OVERRIDES</div>
+        <div class="tile-value">${policyOverrides.length}</div>
+        <div class="tile-sub">${policyOverrides.length ? 'policy escalations' : 'none triggered'}</div>
+      </div>
+    </div>
+
+    <div class="section" style="margin-bottom:18px;">
+      <div class="section-head"><div class="section-title">Evidence Pipeline</div><div class="loading">click a stage for details</div></div>
+      <div class="section-body" style="padding:20px 18px; overflow-x:auto;">
+        <div class="stage-flow">${stagesHtml}</div>
+      </div>
+    </div>
+
+    ${policyOverrides.length ? `
+      <div class="policy-box">
+        <div class="section-title" style="margin-bottom:8px;">Policy Overrides</div>
+        ${policyOverrides.map(r => `<div style="font-size:12.5px; color:var(--text-muted); padding:4px 0;">• ${r}</div>`).join('')}
+      </div>` : ''}
+
+    <div class="section">
+      <div class="section-head"><div class="section-title">All Reasons</div></div>
+      <div class="section-body" style="padding:16px 18px;">
+        ${reasons.length
+          ? reasons.map(r => `<div style="font-size:12.5px; color:var(--text-muted); padding:4px 0;">• ${r}</div>`).join('')
+          : '<div style="color:var(--text-dim);">No reasons recorded.</div>'}
+      </div>
+    </div>
+    ${overrideSection}
+  `;
+
+  document.querySelectorAll('.stage-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const body = card.querySelector('.stage-card-body');
+      body.style.display = body.style.display === 'none' ? 'block' : 'none';
+    });
+  });
+
+  const overrideForm = document.getElementById('overrideForm');
+  if (overrideForm) {
+    overrideForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(overrideForm);
+      const btn = document.getElementById('overrideSubmitBtn');
+      const msg = document.getElementById('overrideMsg');
+      btn.disabled = true;
+      btn.textContent = 'Submitting…';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/releases/${bundle.release_id}/override`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: fd.get('reason'), user: fd.get('user') }),
+        });
+
+        if (!res.ok) {
+          const b = await res.json().catch(() => ({}));
+          throw new Error(b.detail || `HTTP ${res.status}`);
+        }
+
+        msg.textContent = '✓ Override recorded. Refreshing analysis state…';
+        msg.className = 'form-msg success';
+        setTimeout(() => loadExistingAnalysis(bundle.release_id), 300);
+      } catch (err) {
+        msg.textContent = `✗ ${err.message}`;
+        msg.className = 'form-msg error';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Override';
+      }
+    });
+  }
+}
+
+function renderPage(page) {
+  document.getElementById('pageTitle').textContent = PAGE_TITLES[page];
+  if (page === 'overview') {
+    renderOverview();
+  } else if (page === 'releases') {
+    renderReleasesShell();
+  } else if (page === 'analysis') {
+    renderAnalysisPage();
+  } else if (page === 'production') {
+    renderProductionPage();
+  } else if (page === 'dependencies') {
+    renderDependenciesPage();
+  } else if (page === 'infrastructure') {
+    renderInfrastructurePage();
+  } else if (page === 'kubernetes') {
+    renderKubernetesPage();
+  } else if (page === 'security') {
+    renderSecurityPage();
+  } else if (page === 'risk') {
+    renderRiskEnginePage();
+  } else if (page === 'policies') {
+    renderPoliciesPage();
+  } else if (page === 'history') {
+    renderHistoryPage();
+  } else if (page === 'audit') {
+    renderAuditPage();
+  } else if (page === 'settings') {
+    renderSettingsPage();
+  } else {
+    renderPlaceholder(page);
+  }
+}
+
+document.getElementById('nav').addEventListener('click', (e) => {
+  const item = e.target.closest('.nav-item');
+  if (!item) return;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  item.classList.add('active');
+  renderPage(item.dataset.page);
+});
+
+fetchHealth().then(() => renderPage('overview'));
+setInterval(fetchHealth, 15000);
+</script>
+</body>
+</html>
