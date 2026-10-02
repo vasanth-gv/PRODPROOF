@@ -3,6 +3,10 @@ PRODPROOF — Terraform infrastructure change evidence service.
 
 Reads a Terraform JSON plan and converts infrastructure changes
 into explainable evidence for the risk engine.
+
+Security-group risk is counted only when a public ingress rule
+is detected. A normal/restricted security-group change should not
+trigger the "open security group" blocking policy.
 """
 
 import json
@@ -30,8 +34,8 @@ def _collect_security_group_findings(resource: dict) -> list[str]:
     """
     Inspect Terraform security-group ingress rules.
 
-    AWS security-group ingress is normally represented under:
-        change.after.ingress[]
+    A security-group is considered risky only when an ingress rule
+    exposes it publicly through 0.0.0.0/0 or ::/0.
     """
     findings: list[str] = []
 
@@ -122,7 +126,7 @@ def get_infrastructure_changes() -> EvidenceEnvelope:
                 findings=[f"Path not found: {plan_path}"],
             )
 
-        with open(plan_path, "r", encoding="utf-8") as file:
+        with open(plan_path, "r", encoding="utf-8-sig") as file:
             plan = json.load(file)
 
         resource_changes = plan.get("resource_changes", []) or []
@@ -131,6 +135,9 @@ def get_infrastructure_changes() -> EvidenceEnvelope:
         resources_changed = 0
         resources_destroyed = 0
 
+        # IMPORTANT:
+        # This metric represents risky/public security-group changes,
+        # because policy #4 uses this field to block open SG access.
         security_group_changes = 0
         iam_changes = 0
 
@@ -162,11 +169,12 @@ def get_infrastructure_changes() -> EvidenceEnvelope:
             )
 
             if is_security_group and actions and actions != ["no-op"]:
-                security_group_changes += 1
+                sg_findings = _collect_security_group_findings(resource)
 
-                findings.extend(
-                    _collect_security_group_findings(resource)
-                )
+                if sg_findings:
+                    # Count only risky/public SG changes.
+                    security_group_changes += 1
+                    findings.extend(sg_findings)
 
             if resource_type.startswith("aws_iam_") and actions:
                 iam_changes += 1

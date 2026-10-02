@@ -25,7 +25,7 @@ resource "aws_security_group" "prodproof_phase6_test" {
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["0.0.0.0/16"]
   }
 
   egress {
